@@ -66,8 +66,40 @@ if st.button("Analyze"):
         if label is None:
             st.error("Analysis failed. Please try again.")
         else:
-            st.success(f"Detected Sentiment: {label}")
-            st.write(f"Confidence Score: {round(score * 100, 2)}%")
 
-            st.markdown("### Suggested Support")
-            st.write(generate_response(label))
+            confidence = round(score * 100, 2)
+
+            if label == "POSITIVE":
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color:#d4edda;
+                        padding:20px;
+                        border-radius:10px;
+                        border:1px solid #28a745;">
+                        <h3 style="color:#155724;">Detected Sentiment: {label}</h3>
+                        <p><strong>Confidence:</strong> {confidence}%</p>
+                        <p>It’s good to see positivity. Keep building on what’s helping you feel this way.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            elif label == "NEGATIVE":
+                st.markdown(
+                    f"""
+                    <div style="
+                        background-color:#f8d7da;
+                        padding:20px;
+                        border-radius:10px;
+                        border:1px solid #dc3545;">
+                        <h3 style="color:#721c24;">Detected Sentiment: {label}</h3>
+                        <p><strong>Confidence:</strong> {confidence}%</p>
+                        <p>You may be experiencing emotional strain. Consider taking a short break, talking to someone you trust, or doing something calming.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+            else:
+                st.info("Thank you for sharing how you feel.")
