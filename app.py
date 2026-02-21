@@ -4,29 +4,46 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
 import numpy as np
-import speech_recognition as sr
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import A4
-import os
-import smtplib
-from email.mime.text import MIMEText
 
-# -----------------------------
+# ----------------------------------
 # PAGE CONFIG
-# -----------------------------
-st.set_page_config(page_title="NeuroGuard AI", layout="centered")
-st.title("🧠 NeuroGuard AI")
-st.subheader("Advanced Mental Burnout & Depression Detection System")
+# ----------------------------------
+st.set_page_config(page_title="NeuroGuard AI Pro", layout="wide")
 
-st.info("This system provides AI-based insights and is not a medical diagnosis tool.")
+# ----------------------------------
+# CUSTOM UI STYLING
+# ----------------------------------
+st.markdown("""
+<style>
+.main {background-color: #0e1117;}
+h1, h2, h3 {color: #ffffff;}
+.stButton>button {
+    background-color:#1f77b4;
+    color:white;
+    border-radius:8px;
+}
+.block-container {padding-top:2rem;}
+</style>
+""", unsafe_allow_html=True)
 
-# -----------------------------
+st.title("NeuroGuard AI – Pro Max")
+st.caption("Advanced Mental Burnout & Depression Intelligence System")
+
+# ----------------------------------
+# SIDEBAR NAVIGATION
+# ----------------------------------
+menu = st.sidebar.radio(
+    "Navigation",
+    ["Dashboard", "Emotion Analysis", "AI Chatbot", "Reports", "Therapist Finder", "Emergency Support"]
+)
+
+# ----------------------------------
 # LOAD MODELS
-# -----------------------------
+# ----------------------------------
 @st.cache_resource
 def load_models():
     sentiment = pipeline("sentiment-analysis")
@@ -35,170 +52,176 @@ def load_models():
 
 sentiment_model, chatbot_model = load_models()
 
-# -----------------------------
-# SESSION STORAGE
-# -----------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# -----------------------------
-# ANALYSIS FUNCTION
-# -----------------------------
+# ----------------------------------
+# FUNCTIONS
+# ----------------------------------
 def analyze(text):
     result = sentiment_model(text)[0]
     return result["label"], result["score"]
 
-def depression_probability(label, confidence):
-    if label == "NEGATIVE":
-        return round(confidence * 100, 2)
+def calculate_scores(label, confidence):
+    burnout = int(confidence * 100) if label == "NEGATIVE" else 15
+    depression = int(confidence * 100) if label == "NEGATIVE" else 10
+    wellness = 100 - burnout
+    return burnout, depression, wellness
+
+# ----------------------------------
+# DASHBOARD
+# ----------------------------------
+if menu == "Dashboard":
+
+    st.header("Mental Health Overview")
+
+    if st.session_state.history:
+        df = pd.DataFrame(st.session_state.history)
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("Average Burnout", int(df["burnout"].mean()))
+        col2.metric("Avg Depression Risk", int(df["depression"].mean()))
+        col3.metric("Avg Wellness Score", int(df["wellness"].mean()))
+
+        st.subheader("Burnout Trend")
+        fig, ax = plt.subplots()
+        ax.plot(df["burnout"])
+        ax.set_ylabel("Burnout Score")
+        st.pyplot(fig)
     else:
-        return round((1 - confidence) * 40, 2)
+        st.info("No data yet. Go to Emotion Analysis.")
 
-# -----------------------------
-# VOICE INPUT
-# -----------------------------
-st.markdown("## 🎤 Voice Emotion Detection")
+# ----------------------------------
+# EMOTION ANALYSIS
+# ----------------------------------
+if menu == "Emotion Analysis":
 
-audio_file = st.file_uploader("Upload voice file (wav format)", type=["wav"])
+    st.header("Emotion & Burnout Analysis")
 
-if audio_file:
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(audio_file) as source:
-        audio_data = recognizer.record(source)
-        try:
-            text = recognizer.recognize_google(audio_data)
-            st.success("Transcribed Text:")
-            st.write(text)
-        except:
-            st.error("Could not transcribe audio")
+    user_input = st.text_area("Describe how you feel today")
 
-# -----------------------------
-# TEXT INPUT
-# -----------------------------
-st.markdown("## 📝 Text Emotion Analysis")
+    if st.button("Analyze Now"):
 
-user_input = st.text_area("Describe how you feel today:")
+        if user_input.strip():
 
-if st.button("Analyze Emotion"):
+            label, confidence = analyze(user_input)
+            burnout, depression, wellness = calculate_scores(label, confidence)
 
-    if user_input.strip():
-        label, confidence = analyze(user_input)
-        burnout = int(confidence * 100) if label == "NEGATIVE" else 20
-        mental_score = 100 - burnout
-        depression_prob = depression_probability(label, confidence)
+            st.session_state.history.append({
+                "date": datetime.date.today(),
+                "label": label,
+                "burnout": burnout,
+                "depression": depression,
+                "wellness": wellness
+            })
 
-        st.session_state.history.append({
-            "date": datetime.date.today(),
-            "label": label,
-            "burnout": burnout,
-            "mental_score": mental_score,
-            "depression_prob": depression_prob
-        })
+            col1, col2 = st.columns(2)
 
-        # Color Box
-        if label == "POSITIVE":
-            st.success(f"Positive Mood Detected ({round(confidence*100,2)}%)")
+            if label == "POSITIVE":
+                col1.success(f"Positive Mood ({round(confidence*100,2)}%)")
+            else:
+                col1.error(f"Negative Mood ({round(confidence*100,2)}%)")
+
+            col2.metric("Wellness Score", wellness)
+
+            st.subheader("Burnout Risk Level")
+            st.progress(burnout/100)
+
+            if burnout > 70:
+                st.error("High Burnout Risk")
+            elif burnout > 40:
+                st.warning("Moderate Burnout Risk")
+            else:
+                st.success("Low Burnout Risk")
+
+            st.subheader("Depression Probability")
+            st.metric("Risk %", depression)
+
+# ----------------------------------
+# AI CHATBOT
+# ----------------------------------
+if menu == "AI Chatbot":
+
+    st.header("AI Mental Support Assistant")
+
+    chat_input = st.text_input("Talk to NeuroGuard AI")
+
+    if st.button("Generate Response"):
+        if chat_input:
+            response = chatbot_model(chat_input, max_length=120)[0]["generated_text"]
+            st.write(response)
+
+# ----------------------------------
+# REPORTS
+# ----------------------------------
+if menu == "Reports":
+
+    st.header("Generate Mental Health Report")
+
+    if st.button("Create PDF Report"):
+
+        if not st.session_state.history:
+            st.warning("No data available.")
         else:
-            st.error(f"Negative Mood Detected ({round(confidence*100,2)}%)")
+            doc = SimpleDocTemplate("NeuroGuard_Report.pdf", pagesize=A4)
+            elements = []
+            styles = getSampleStyleSheet()
 
-        # Burnout
-        st.markdown("### 🔥 Burnout Risk")
-        st.progress(burnout/100)
+            elements.append(Paragraph("NeuroGuard AI Report", styles["Heading1"]))
+            elements.append(Spacer(1, 0.5 * inch))
 
-        # Depression Probability
-        st.markdown("### 📉 Depression Probability")
-        st.metric("Risk %", depression_prob)
+            for entry in st.session_state.history:
+                text = f"""
+                Date: {entry['date']}<br/>
+                Mood: {entry['label']}<br/>
+                Burnout: {entry['burnout']}<br/>
+                Depression Risk: {entry['depression']}%<br/>
+                Wellness Score: {entry['wellness']}
+                """
+                elements.append(Paragraph(text, styles["Normal"]))
+                elements.append(Spacer(1, 0.3 * inch))
 
-# -----------------------------
-# CHATBOT MODE
-# -----------------------------
-st.markdown("## 🤖 AI Support Chatbot")
+            doc.build(elements)
 
-chat_input = st.text_input("Talk to NeuroGuard AI")
+            with open("NeuroGuard_Report.pdf", "rb") as file:
+                st.download_button("Download Report", file, "NeuroGuard_Report.pdf")
 
-if st.button("Send to Chatbot"):
-    if chat_input:
-        response = chatbot_model(chat_input, max_length=100)[0]["generated_text"]
-        st.write(response)
+# ----------------------------------
+# THERAPIST FINDER
+# ----------------------------------
+if menu == "Therapist Finder":
 
-# -----------------------------
-# PDF REPORT GENERATION
-# -----------------------------
-st.markdown("## 📄 Download Mental Health Report")
+    st.header("Find Professional Support")
 
-if st.button("Generate PDF Report"):
+    city = st.selectbox("Select City", ["Lahore", "Karachi", "Islamabad"])
 
-    doc = SimpleDocTemplate("mental_report.pdf", pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
-
-    elements.append(Paragraph("NeuroGuard AI Mental Health Report", styles["Heading1"]))
-    elements.append(Spacer(1, 0.5 * inch))
-
-    for entry in st.session_state.history:
-        text = f"""
-        Date: {entry['date']}<br/>
-        Mood: {entry['label']}<br/>
-        Burnout Score: {entry['burnout']}<br/>
-        Mental Score: {entry['mental_score']}<br/>
-        Depression Risk: {entry['depression_prob']}%
-        """
-        elements.append(Paragraph(text, styles["Normal"]))
-        elements.append(Spacer(1, 0.3 * inch))
-
-    doc.build(elements)
-
-    with open("mental_report.pdf", "rb") as file:
-        st.download_button("Download Report", file, "NeuroGuard_Report.pdf")
-
-# -----------------------------
-# EMAIL ALERT SYSTEM
-# -----------------------------
-st.markdown("## 📧 Email Alert System")
-
-email_input = st.text_input("Enter Email for Alerts")
-
-if st.button("Send Alert"):
-    if email_input:
-        try:
-            msg = MIMEText("NeuroGuard Alert: High emotional distress detected.")
-            msg["Subject"] = "NeuroGuard AI Alert"
-            msg["From"] = "your_email@gmail.com"
-            msg["To"] = email_input
-
-            server = smtplib.SMTP("smtp.gmail.com", 587)
-            server.starttls()
-            server.login("your_email@gmail.com", "your_app_password")
-            server.sendmail("your_email@gmail.com", email_input, msg.as_string())
-            server.quit()
-
-            st.success("Alert Email Sent")
-        except:
-            st.error("Email configuration required.")
-
-# -----------------------------
-# THERAPIST RECOMMENDATION
-# -----------------------------
-st.markdown("## 🏥 Therapist Recommendation")
-
-city = st.selectbox("Select Your City", ["Lahore", "Karachi", "Islamabad"])
-
-if city:
     if city == "Lahore":
-        st.write("Suggested: Lahore Psychology Center")
+        st.info("Lahore Psychology Center\nContact: 042-XXXXXXX")
     elif city == "Karachi":
-        st.write("Suggested: Karachi Mental Health Clinic")
+        st.info("Karachi Mental Wellness Clinic\nContact: 021-XXXXXXX")
     else:
-        st.write("Suggested: Islamabad Therapy Services")
+        st.info("Islamabad Therapy Services\nContact: 051-XXXXXXX")
 
-# -----------------------------
-# HISTORY GRAPH
-# -----------------------------
-if st.session_state.history:
-    st.markdown("## 📊 Mood Trend")
+# ----------------------------------
+# EMERGENCY SUPPORT
+# ----------------------------------
+if menu == "Emergency Support":
 
-    df = pd.DataFrame(st.session_state.history)
-    fig, ax = plt.subplots()
-    ax.plot(df["burnout"])
-    ax.set_ylabel("Burnout Score")
-    st.pyplot(fig)
+    st.header("Immediate Help Resources")
+
+    st.error("If you are experiencing severe distress, please seek immediate help.")
+
+    st.write("""
+    Pakistan Helpline: 1166  
+    Edhi Ambulance: 115  
+    Contact a trusted person immediately.
+    """)
+
+# ----------------------------------
+# RESET DATA
+# ----------------------------------
+st.sidebar.markdown("---")
+if st.sidebar.button("Reset All Data"):
+    st.session_state.history = []
+    st.sidebar.success("Session Reset Complete")
