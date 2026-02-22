@@ -11,7 +11,7 @@ import numpy as np
 st.set_page_config(page_title="NeuroGuard AI Enterprise", layout="wide")
 
 # ----------------------------
-# ADVANCED UI STYLING
+# PREMIUM UI STYLING
 # ----------------------------
 st.markdown("""
 <style>
@@ -28,22 +28,13 @@ body {background-color: #0e1117;}
     backdrop-filter: blur(10px);
     margin-bottom:20px;
 }
-.metric-label {
-    font-size:16px;
-    color:#9ca3af;
-}
-.metric-value {
-    font-size:28px;
-    font-weight:bold;
-    color:white;
-}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">NeuroGuard AI – Enterprise Edition</div>', unsafe_allow_html=True)
 
 # ----------------------------
-# MODEL LOADING
+# LOAD MODEL
 # ----------------------------
 @st.cache_resource
 def load_model():
@@ -51,11 +42,14 @@ def load_model():
 
 model = load_model()
 
+# ----------------------------
+# SESSION STATE
+# ----------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
 # ----------------------------
-# ANALYSIS LOGIC
+# CORE FUNCTIONS
 # ----------------------------
 def analyze(text):
     result = model(text)[0]
@@ -68,12 +62,48 @@ def compute_scores(label, confidence):
     stability = max(0, 100 - abs(50 - wellness))
     return burnout, depression, wellness, stability
 
+def emotional_volatility(df):
+    if len(df) < 2:
+        return 0
+    return int(df["burnout"].std())
+
+def resilience_score(df):
+    if len(df) == 0:
+        return 0
+    return int(100 - df["burnout"].mean())
+
+def streak_counter(df):
+    if len(df) == 0:
+        return 0
+    return sum(df["label"] == "POSITIVE")
+
+def productivity_index(wellness, burnout):
+    return max(0, int((wellness * 0.6) - (burnout * 0.4)))
+
+def psychological_profile(df):
+    if len(df) == 0:
+        return "No Data"
+    avg = df["burnout"].mean()
+    if avg > 70:
+        return "High Stress Profile"
+    elif avg > 40:
+        return "Moderate Stress Profile"
+    else:
+        return "Balanced Emotional Profile"
+
 # ----------------------------
-# SIDEBAR
+# SIDEBAR NAVIGATION
 # ----------------------------
 menu = st.sidebar.selectbox(
     "Navigation",
-    ["Dashboard", "Analyze Emotion", "Advanced Analytics", "AI Insights", "Wellness Coach"]
+    [
+        "Dashboard",
+        "Analyze Emotion",
+        "Advanced Analytics",
+        "AI Insights",
+        "Wellness Coach",
+        "Recovery Mode"
+    ]
 )
 
 # ----------------------------
@@ -84,32 +114,35 @@ if menu == "Dashboard":
     st.header("Mental Health Overview")
 
     if st.session_state.history:
-
         df = pd.DataFrame(st.session_state.history)
 
-        avg_burnout = int(df["burnout"].mean())
-        avg_depression = int(df["depression"].mean())
-        avg_wellness = int(df["wellness"].mean())
-
         col1, col2, col3 = st.columns(3)
+        col1.metric("Average Burnout", int(df["burnout"].mean()))
+        col2.metric("Depression Risk", int(df["depression"].mean()))
+        col3.metric("Wellness Score", int(df["wellness"].mean()))
 
-        col1.metric("Average Burnout", avg_burnout)
-        col2.metric("Depression Risk", avg_depression)
-        col3.metric("Wellness Score", avg_wellness)
+        col4, col5, col6 = st.columns(3)
+        col4.metric("Emotional Volatility", emotional_volatility(df))
+        col5.metric("Resilience Score", resilience_score(df))
+        col6.metric("Positive Mood Streak", streak_counter(df))
+
+        st.info(f"Psychological Profile: {psychological_profile(df)}")
 
         st.subheader("Burnout Trend")
         fig, ax = plt.subplots()
         ax.plot(df["burnout"])
-        ax.set_ylabel("Burnout")
+        ax.set_ylabel("Burnout Score")
         st.pyplot(fig)
 
     else:
-        st.info("Start analyzing emotions to see dashboard insights.")
+        st.info("No data available. Start with Emotion Analysis.")
 
 # ----------------------------
 # ANALYZE EMOTION
 # ----------------------------
 if menu == "Analyze Emotion":
+
+    st.header("Emotion & Burnout Analysis")
 
     text = st.text_area("How are you feeling today?")
 
@@ -138,14 +171,21 @@ if menu == "Analyze Emotion":
 
             col2.metric("Wellness Score", wellness)
 
+            st.subheader("Burnout Heat Index")
+
+            if burnout < 40:
+                st.success("Low Heat Level")
+            elif burnout < 70:
+                st.warning("Moderate Heat Level")
+            else:
+                st.error("Critical Heat Level")
+
             st.progress(burnout / 100)
 
-            if burnout > 75:
-                st.error("Critical Burnout Level")
-            elif burnout > 50:
-                st.warning("Moderate Burnout Level")
-            else:
-                st.success("Stable Emotional State")
+            st.metric("Depression Probability", depression)
+
+            focus = productivity_index(wellness, burnout)
+            st.metric("Focus Index", focus)
 
 # ----------------------------
 # ADVANCED ANALYTICS
@@ -156,8 +196,7 @@ if menu == "Advanced Analytics":
 
         df = pd.DataFrame(st.session_state.history)
 
-        st.subheader("Emotional Distribution")
-
+        st.subheader("Mood Distribution")
         mood_counts = df["label"].value_counts()
 
         fig, ax = plt.subplots()
@@ -165,7 +204,6 @@ if menu == "Advanced Analytics":
         st.pyplot(fig)
 
         st.subheader("Stability Index Trend")
-
         fig2, ax2 = plt.subplots()
         ax2.plot(df["stability"])
         ax2.set_ylabel("Stability Index")
@@ -175,14 +213,16 @@ if menu == "Advanced Analytics":
         st.info("No analytics data yet.")
 
 # ----------------------------
-# AI INSIGHTS ENGINE
+# AI INSIGHTS
 # ----------------------------
 if menu == "AI Insights":
 
     if st.session_state.history:
 
         df = pd.DataFrame(st.session_state.history)
+
         avg_burnout = df["burnout"].mean()
+        volatility = emotional_volatility(df)
 
         st.subheader("AI Risk Assessment")
 
@@ -193,11 +233,11 @@ if menu == "AI Insights":
         else:
             st.success("Healthy Emotional Pattern")
 
-        st.subheader("System Insight")
+        if volatility > 25:
+            st.warning("High emotional fluctuations detected.")
 
-        st.write(
-            "Based on your emotional patterns, the system recommends maintaining balanced work schedules, prioritizing rest, and monitoring stress triggers."
-        )
+        if df["burnout"].iloc[-1] > 80:
+            st.error("Recent burnout spike detected. Immediate recovery advised.")
 
     else:
         st.info("Run emotion analysis first.")
@@ -217,7 +257,32 @@ if menu == "Wellness Coach":
     • Engage in light physical activity  
     """)
 
-    st.success("Small consistent habits create long-term mental resilience.")
+    st.success("Small consistent habits create long-term resilience.")
+
+# ----------------------------
+# RECOVERY MODE
+# ----------------------------
+if menu == "Recovery Mode":
+
+    st.header("AI Guided Recovery Protocol")
+
+    st.write("""
+    1. Disconnect from workload for 30 minutes.
+    2. Perform 4-7-8 breathing exercise.
+    3. Hydrate and walk for 10 minutes.
+    4. Avoid digital screens temporarily.
+    5. Journal one stress trigger.
+    """)
+
+    st.success("Recovery plan generated based on emotional risk level.")
+
+# ----------------------------
+# DATA EXPORT
+# ----------------------------
+if st.session_state.history:
+    df_export = pd.DataFrame(st.session_state.history)
+    csv = df_export.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button("Download CSV Data", csv, "neuroguard_data.csv")
 
 # ----------------------------
 # RESET
